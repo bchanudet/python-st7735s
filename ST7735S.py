@@ -71,7 +71,7 @@ class ST7735S(object):
 
     def sendManyBytes(self, bytes):
         self.sendCommand(Commands.RAMWR)
-        print("({})".format(len(bytes)),end="")
+        print(bytes)
         GPIO.output(self.DC, 1)
         self.spi.writebytes(bytes)
 
@@ -92,8 +92,7 @@ class ST7735S(object):
         time.sleep(0.3)
         self.sendCommand(Commands.DISPOFF)
         time.sleep(0.3)
-        self.sendCommand(Commands.COLMOD, 0x05)
-        self.sendCommand(Commands.MADCTL, 0x00 | 0x40 | 0x20)
+        self.sendCommand(Commands.COLMOD, 0x06)
         self.sendCommand(Commands.DISPON)
         GPIO.output(self.Light, 1)
 
@@ -109,34 +108,49 @@ class ST7735S(object):
     ## COLOR CONVERSION
     
     def colorTo18(self, color):
-        return (((color[0]//4) << 18) | ((color[1]//4) << 10) | ((color[2]//4) << 2)) & 0xfff
+        return [((color[0] >> 2) << 2),((color[1] >> 2) << 2),((color[2] >> 2) << 2)]
 
     def colorTo16(self, color):
         return (((color[2] // 8) << 11) | ((color[1] // 4) << 5) | (color[0] // 8) >> 8) & 0xff
+    
 
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
-        print("color {0:b}, {0:x}, {0}".format(self.colorTo16(color)))
+        print(self.colorTo18(color))
 
         for y in range(self.screenHeight):
-            self.sendManyBytes([self.colorTo16(color) for i in range(self.screenWidth)])
+            self.sendManyBytes(self.colorTo18(color) * self.screenWidth)
 
     def draw(self, image):
 
         pixels = list(image.getdata())
 
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
-        converted = list(map(self.colorTo16, pixels[0:(self.screenWidth * self.screenHeight)]))
 
-        print("got {} pixels for {} lines".format(len(converted), len(converted) // self.screenWidth))
+        converted = []
+        for i in range(self.screenWidth * self.screenHeight):
+            converted += self.colorTo18(pixels[i])
+
+        print("got {} pixels for {} lines".format(len(converted), len(converted) // (self.screenWidth*3)))
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.DC, 1)
 
-        for i in range((len(converted) // self.screenWidth)):
-            print("color {0:b}, {0:x}, {0}".format(converted[i*self.screenWidth]))
-            self.spi.writebytes(converted[i*self.screenWidth:self.screenWidth*(i+1)])
-
+        i = 0
+        tmpbuffer = []
+        while i < len(converted):
+            if i % (self.screenWidth*3) == 0:
+                if len(tmpbuffer) > 0:
+                    #print("sending {0}".format(len(tmpbuffer)))
+                    self.spi.writebytes(tmpbuffer)
+                tmpbuffer = []
+                
+            tmpbuffer.append(converted[i])
+            i += 1
+        
+        if len(tmpbuffer) > 0:
+            self.spi.writebytes(tmpbuffer)
+        
 
