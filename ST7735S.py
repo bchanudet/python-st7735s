@@ -181,17 +181,10 @@ class ST7735S(object):
     def draw(self, image):
 
         start = time.perf_counter()
-        print("--- started ----")
         pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
-        print("got_data",  time.perf_counter() - start)
 
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
-        print("window_set",  time.perf_counter() - start)
-
-        #converted = []
-        #for i in range(len(pixels)):
-        #    converted += pixels[i]
         converted = [item for sublist in pixels for item in sublist]
 
         print("converted",  time.perf_counter() - start, len(converted))
@@ -199,13 +192,9 @@ class ST7735S(object):
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        
-        print("sending", time.perf_counter() - start)
-
-        i = 0
         lines = []
 
-        for i in range(127):
+        for i in range(128):
             lines.append(converted[(i*384):(i*384+384)])
 
         for y in range(len(lines)):
@@ -213,5 +202,4 @@ class ST7735S(object):
         
         
         print("end", time.perf_counter() - start)
-        print("-------------------------------------")
 
