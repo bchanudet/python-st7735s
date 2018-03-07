@@ -4,13 +4,11 @@ from PIL import Image
 screen = ST7735S.ST7735S()
 
 print("== COLOR")
-screen.fill((0,255,0))
+start = time.perf_counter()
 
-time.sleep(1)
-print("")
-print("== IMAGE")
-img = Image.open("assets/galaxy.png")
-screen.draw(img)
-print("")
+for i in range(25):
+    screen.fill((0,255,0))
+    screen.fill((255,0,0))
+    screen.fill((0,0,255))
 
-#screen.close()
+print("end", time.perf_counter() - start)    

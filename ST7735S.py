@@ -1,9 +1,5 @@
-import copy
-import math
 import time
-
 from PIL import Image
-
 import RPi.GPIO as GPIO
 import spidev
 
@@ -65,7 +61,7 @@ class ST7735S(object):
 
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
-        self.spi.max_speed_hz = 8500000
+        self.spi.max_speed_hz = 24000000
         self.spi.mode = 0x00
 
         self.hardReset()
@@ -80,12 +76,12 @@ class ST7735S(object):
 
     def sendManyBytes(self, bytes):
         self.sendCommand(Commands.RAMWR)
-        print(bytes)
+        #print(bytes)
         GPIO.output(self.PinDC, 1)
         self.spi.writebytes(bytes)
 
     def sendCommand(self, command, *bytes):
-        print("cmd", "{0:X}".format(command), bytes)
+        #print("cmd", "{0:X}".format(command), bytes)
         GPIO.output(self.PinDC, 0)
         self.spi.writebytes([command])
 
@@ -94,7 +90,7 @@ class ST7735S(object):
             self.spi.writebytes(list(bytes))
 
     def hardReset(self):
-        print("hard_reset")
+        #print("hard_reset")
         GPIO.output(self.PinReset, 1)
         time.sleep(.2)
         GPIO.output(self.PinReset, 0)
@@ -104,7 +100,7 @@ class ST7735S(object):
         
     def reset(self):        
         GPIO.output(self.PinLight, 0)
-        print("reset")
+        #print("reset")
         self.sendCommand(Commands.SWRESET)
         time.sleep(0.3)
         self.sendCommand(Commands.DISPOFF)
@@ -156,75 +152,63 @@ class ST7735S(object):
         GPIO.cleanup()
 
     def setWindow(self, x0, y0, x1, y1):
-        print("setting window from {},{} to {},{}".format(x0,y0,x1,y1))
+        #print("setting window from {},{} to {},{}".format(x0,y0,x1,y1))
         self.sendCommand(Commands.CASET, 0, (x0 & 0xff) +1, 0, (x1 & 0xff) +1)
         self.sendCommand(Commands.RASET, 0, (y0 & 0xff) +2, 0, (y1 & 0xff) +2)
-
-    ## COLOR CONVERSION
-
-    def convColor(self, color):
-        if self.bitsPerPixel == 18:
-            return self.colorTo18(color)
-        else:
-            return self.colorTo16(color)
-    
-    def colorTo18(self, color):
-        newColor =  [((color[0] >> 2) << 2),((color[1] >> 2) << 2),((color[2] >> 2) << 2)]
-        return newColor
-
-    def colorTo16(self, color):
-        newColor = ((color[0] >> 3) << 11)|((color[1] >> 2) << 5)|(color[2] >> 3)
-        return [newColor >> 8, newColor & 0xff]
-    
 
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
         self.setWindow(0, 0, self.displayWidth-1, self.displayHeight-1)
 
-        converted = self.convColor(color)
-
-        oneLine = converted * (self.displayWidth)
-        print(oneLine)
+        oneLine = color * (self.displayWidth * 4)
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        for y in range(self.screenHeight):
+        for y in range(int(self.screenHeight>>2)):
             self.spi.writebytes(oneLine)
+            
 
     def draw(self, image):
 
-        pixels = list(image.getdata())
+        start = time.perf_counter()
+        print("--- started ----")
+        pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
+        print("got_data",  time.perf_counter() - start)
 
         self.setWindow(0, 0, self.screenWidth-1, self.screenHeight-1)
 
+        print("window_set",  time.perf_counter() - start)
+
         converted = []
-        for i in range(self.screenWidth * self.screenHeight):
-            converted += self.convColor(pixels[i])
+        for i in range(len(pixels)):
+            converted.extend(pixels[i])
 
-        bytePerPixel = 2
-        if self.bitsPerPixel == 18 :
-            bytePerPixel = 3
-
-        print("got {} pixels for {} lines".format(len(converted), len(converted) // (self.screenWidth*bytePerPixel)))
+        print("converted",  time.perf_counter() - start, len(pixels))
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
+
+        
+        print("sending", time.perf_counter() - start)
 
         i = 0
         tmpbuffer = []
         while i < len(converted):
-            if i % (self.screenWidth*bytePerPixel*4) == 0:
-                if len(tmpbuffer) > 0:
-                    print("sending {0}".format(len(tmpbuffer)))
-                    self.spi.writebytes(tmpbuffer)
+            if len(tmpbuffer) > 4092 :
+                #print("pck", time.perf_counter() - start)
+                self.spi.xfer2(tmpbuffer)
                 tmpbuffer = []
                 
             tmpbuffer.append(converted[i])
             i += 1
         
         if len(tmpbuffer) > 0:
-            self.spi.writebytes(tmpbuffer)
+            #print("lpc", time.perf_counter() - start)
+            self.spi.xfer2(tmpbuffer)
         
+        
+        print("end", time.perf_counter() - start)
+        print("-------------------------------------")
 
