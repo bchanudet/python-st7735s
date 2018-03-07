@@ -153,21 +153,29 @@ class ST7735S(object):
 
     def setWindow(self, x0, y0, x1, y1):
         #print("setting window from {},{} to {},{}".format(x0,y0,x1,y1))
-        self.sendCommand(Commands.CASET, 0, (x0 & 0xff) +1, 0, (x1 & 0xff) +1)
-        self.sendCommand(Commands.RASET, 0, (y0 & 0xff) +2, 0, (y1 & 0xff) +2)
+        self.sendCommand(Commands.CASET, 0, (x0 & 0xff) +1, 0, (x1 & 0xff))
+        self.sendCommand(Commands.RASET, 0, (y0 & 0xff) +2, 0, (y1 & 0xff)+1)
 
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
-        self.setWindow(0, 0, self.displayWidth-1, self.displayHeight-1)
+
+        start = time.perf_counter()
+        print("--- started ----")
+        self.setWindow(0, 0, self.displayWidth, self.displayHeight)
 
         oneLine = color * (self.displayWidth * 4)
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
+        print("sending", time.perf_counter() - start)
+
         for y in range(int(self.screenHeight>>2)):
             self.spi.writebytes(oneLine)
+
+        print("end", time.perf_counter() - start)
+        print("-------------------------------------")
             
 
     def draw(self, image):
@@ -177,15 +185,16 @@ class ST7735S(object):
         pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
         print("got_data",  time.perf_counter() - start)
 
-        self.setWindow(0, 0, self.screenWidth-1, self.screenHeight-1)
+        self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
         print("window_set",  time.perf_counter() - start)
 
-        converted = []
-        for i in range(len(pixels)):
-            converted.extend(pixels[i])
+        #converted = []
+        #for i in range(len(pixels)):
+        #    converted += pixels[i]
+        converted = [item for sublist in pixels for item in sublist]
 
-        print("converted",  time.perf_counter() - start, len(pixels))
+        print("converted",  time.perf_counter() - start, len(converted))
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
@@ -194,19 +203,13 @@ class ST7735S(object):
         print("sending", time.perf_counter() - start)
 
         i = 0
-        tmpbuffer = []
-        while i < len(converted):
-            if len(tmpbuffer) > 4092 :
-                #print("pck", time.perf_counter() - start)
-                self.spi.xfer2(tmpbuffer)
-                tmpbuffer = []
-                
-            tmpbuffer.append(converted[i])
-            i += 1
-        
-        if len(tmpbuffer) > 0:
-            #print("lpc", time.perf_counter() - start)
-            self.spi.xfer2(tmpbuffer)
+        lines = []
+
+        for i in range(127):
+            lines.append(converted[(i*384):(i*384+384)])
+
+        for y in range(len(lines)):
+            self.spi.writebytes(lines[y])
         
         
         print("end", time.perf_counter() - start)
