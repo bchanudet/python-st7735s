@@ -76,12 +76,10 @@ class ST7735S(object):
 
     def sendManyBytes(self, bytes):
         self.sendCommand(Commands.RAMWR)
-        #print(bytes)
         GPIO.output(self.PinDC, 1)
         self.spi.writebytes(bytes)
 
     def sendCommand(self, command, *bytes):
-        #print("cmd", "{0:X}".format(command), bytes)
         GPIO.output(self.PinDC, 0)
         self.spi.writebytes([command])
 
@@ -90,7 +88,6 @@ class ST7735S(object):
             self.spi.writebytes(list(bytes))
 
     def hardReset(self):
-        #print("hard_reset")
         GPIO.output(self.PinReset, 1)
         time.sleep(.2)
         GPIO.output(self.PinReset, 0)
@@ -100,7 +97,6 @@ class ST7735S(object):
         
     def reset(self):        
         GPIO.output(self.PinLight, 0)
-        #print("reset")
         self.sendCommand(Commands.SWRESET)
         time.sleep(0.3)
         self.sendCommand(Commands.DISPOFF)
@@ -152,42 +148,29 @@ class ST7735S(object):
         GPIO.cleanup()
 
     def setWindow(self, x0, y0, x1, y1):
-        #print("setting window from {},{} to {},{}".format(x0,y0,x1,y1))
         self.sendCommand(Commands.CASET, 0, (x0 & 0xff) +1, 0, (x1 & 0xff))
         self.sendCommand(Commands.RASET, 0, (y0 & 0xff) +2, 0, (y1 & 0xff)+1)
 
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
-
-        start = time.perf_counter()
-        print("--- started ----")
         self.setWindow(0, 0, self.displayWidth, self.displayHeight)
 
         oneLine = color * (self.displayWidth * 4)
-
+        
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        print("sending", time.perf_counter() - start)
-
         for y in range(int(self.screenHeight>>2)):
             self.spi.writebytes(oneLine)
-
-        print("end", time.perf_counter() - start)
-        print("-------------------------------------")
             
 
     def draw(self, image):
-
-        start = time.perf_counter()
-        pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
-
+        
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
+        pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
         converted = [item for sublist in pixels for item in sublist]
-
-        print("converted",  time.perf_counter() - start, len(converted))
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
@@ -199,6 +182,3 @@ class ST7735S(object):
 
         for y in range(len(lines)):
             self.spi.writebytes(lines[y])
-        
-        
-        print("end", time.perf_counter() - start)
