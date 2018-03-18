@@ -15,6 +15,5 @@ for i in range(10):
 timeTaken =  time.perf_counter() - start
 fps = 50/timeTaken
 
-print("end")
 print("Time taken: {0:f}s".format(timeTaken))
 print("Average FPS: {0:f}".format(fps))

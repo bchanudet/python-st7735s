@@ -4,11 +4,10 @@ from PIL import Image
 
 screen = controller.ST7735S()
 
-img = Image.open("assets/1.jpg")
-img2 = Image.open("assets/2.jpg")
+img = Image.open("assets/1.png")
+img2 = Image.open("assets/2.png")
 
 start = time.perf_counter()
-
 for i in range(10):
 	screen.draw(img)
 	screen.draw(img2)
