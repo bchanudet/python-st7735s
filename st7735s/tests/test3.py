@@ -7,12 +7,15 @@ screen = controller.ST7735S()
 img = Image.open("assets/1.png")
 img2 = Image.open("assets/2.png")
 
-start = time.perf_counter()
+#start = time.perf_counter() # Python 3
+start = time.time()          # Python 2
+
 for i in range(10):
 	screen.draw(img)
 	screen.draw(img2)
 
-timeTaken =  time.perf_counter() - start
+#timeTaken = time.perf_counter() - start
+timeTaken = time.time() - start
 fps = 20/timeTaken
 
 print("Time taken: {0:f}s".format(timeTaken))

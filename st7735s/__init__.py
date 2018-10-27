@@ -50,7 +50,7 @@ class ST7735S(object):
         self.PinDC          = 22
         self.PinLight       = 18
         self.PinReset       = 13
-        
+
         self.bitsPerPixel   = 18
 
         GPIO.setmode(GPIO.BOARD)
@@ -94,8 +94,8 @@ class ST7735S(object):
         time.sleep(.2)
         GPIO.output(self.PinReset, 1)
         time.sleep(.5)
-        
-    def reset(self):        
+
+    def reset(self):
         GPIO.output(self.PinLight, 0)
         self.sendCommand(Commands.SWRESET)
         time.sleep(0.3)
@@ -106,7 +106,7 @@ class ST7735S(object):
         self.sendCommand(Commands.FRMCT1, 0x01, 0x2c, 0x2d)
         self.sendCommand(Commands.FRMCT2, 0x01, 0x2c, 0x2d)
         self.sendCommand(Commands.FRMCT3, 0x01, 0x2c, 0x2d, 0x01, 0x2c, 0x2d)
-        
+
         # Inversion
         self.sendCommand(Commands.INVCTR, 0x07)
 
@@ -154,16 +154,18 @@ class ST7735S(object):
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
-        self.setWindow(0, 0, self.displayWidth, self.displayHeight)
+        self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
-        oneLine = color * (self.displayWidth * 4)
-        
+        # (c, c, c) x 1261 = 3783 < max spi buffer size (4096 bytes)
+        spiData = color * (1261)
+
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        for y in range(int(self.screenHeight>>2)):
-            self.spi.writebytes(oneLine)
-            
+        # 13 x 3783 = 49179 (9pxls more than 128x128x3)
+        for y in range(13):
+            self.spi.writebytes(spiData)
+
 
     def draw(self, image):
         
