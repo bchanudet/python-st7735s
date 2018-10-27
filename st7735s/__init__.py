@@ -180,9 +180,41 @@ class ST7735S(object):
         spiLines = []
 
         # Max spi buffer size = 4096 bytes, using 3781 bytes
-        # 13x3781 = 49153 (1pxl more than 128x128x3)
+        # 13x3781 = 49153 (1 byte more than 128x128x3)
         for i in range(13):
             spiLines.append(converted[(i*3781):(i*3781 + 3781)])
 
         for y in range(13):
             self.spi.writebytes(spiLines[y])
+
+    def draw_at(self, image, x = 0, y = 0):
+        # Makes sure we do not go beyond the screen size
+        width  = min(image.width,  self.screenWidth  - x)
+        height = min(image.height, self.screenHeight - y)
+
+        self.setWindow(x, y, x + width, y + height)
+
+        converted = list(itertools.chain.from_iterable(image.getdata()))
+
+        self.sendCommand(Commands.RAMWR)
+        GPIO.output(self.PinDC, 1)
+
+        extracted = []
+        for i in range(height):
+            extracted += converted[(i*image.width*3):(i*image.width*3 + width*3)]
+
+        spiLines = []
+
+        n_lines = (width*height + 1261 - 1) // 1261 # ceil
+        for i in range(n_lines):
+            spiLines.append(extracted[(i*3781):(i*3781 + 3781)])
+
+        for y in range(n_lines):
+            self.spi.writebytes(spiLines[y])
+
+        # Note: Precise number of bytes but more spi transactions (slower)
+#        for i in range(height):
+#            spiLines.append(converted[(i*image.width*3):(i*image.width*3 + width*3)])
+
+#        for y in range(height):
+#            self.spi.writebytes(spiLines[y])
