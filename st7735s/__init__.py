@@ -1,4 +1,5 @@
 import time
+import itertools
 from PIL import Image
 import RPi.GPIO as GPIO
 import spidev
@@ -168,19 +169,20 @@ class ST7735S(object):
 
 
     def draw(self, image):
-        
+        # image must be 128x128x3 bytes
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
-        pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
-        converted = [item for sublist in pixels for item in sublist]
+        converted = list(itertools.chain.from_iterable(image.getdata()))
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        lines = []
+        spiLines = []
 
-        for i in range(128):
-            lines.append(converted[(i*384):(i*384+384)])
+        # Max spi buffer size = 4096 bytes, using 3781 bytes
+        # 13x3781 = 49153 (1pxl more than 128x128x3)
+        for i in range(13):
+            spiLines.append(converted[(i*3781):(i*3781 + 3781)])
 
-        for y in range(len(lines)):
-            self.spi.writebytes(lines[y])
+        for y in range(13):
+            self.spi.writebytes(spiLines[y])
