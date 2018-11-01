@@ -1,4 +1,5 @@
 import time
+import itertools
 from PIL import Image
 import RPi.GPIO as GPIO
 import spidev
@@ -50,7 +51,7 @@ class ST7735S(object):
         self.PinDC          = 22
         self.PinLight       = 18
         self.PinReset       = 13
-        
+
         self.bitsPerPixel   = 18
 
         GPIO.setmode(GPIO.BOARD)
@@ -94,8 +95,8 @@ class ST7735S(object):
         time.sleep(.2)
         GPIO.output(self.PinReset, 1)
         time.sleep(.5)
-        
-    def reset(self):        
+
+    def reset(self):
         GPIO.output(self.PinLight, 0)
         self.sendCommand(Commands.SWRESET)
         time.sleep(0.3)
@@ -106,7 +107,7 @@ class ST7735S(object):
         self.sendCommand(Commands.FRMCT1, 0x01, 0x2c, 0x2d)
         self.sendCommand(Commands.FRMCT2, 0x01, 0x2c, 0x2d)
         self.sendCommand(Commands.FRMCT3, 0x01, 0x2c, 0x2d, 0x01, 0x2c, 0x2d)
-        
+
         # Inversion
         self.sendCommand(Commands.INVCTR, 0x07)
 
@@ -154,31 +155,59 @@ class ST7735S(object):
     ## DRAWING FUNCTIONS
 
     def fill(self, color):
-        self.setWindow(0, 0, self.displayWidth, self.displayHeight)
-
-        oneLine = color * (self.displayWidth * 4)
-        
-        self.sendCommand(Commands.RAMWR)
-        GPIO.output(self.PinDC, 1)
-
-        for y in range(int(self.screenHeight>>2)):
-            self.spi.writebytes(oneLine)
-            
-
-    def draw(self, image):
-        
         self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
-        pixels = list(image.getdata())[:self.screenWidth * self.screenHeight]
-        converted = [item for sublist in pixels for item in sublist]
+        # (c, c, c) x 1261 = 3783 < max spi buffer size (4096 bytes)
+        spiData = color * (1261)
 
         self.sendCommand(Commands.RAMWR)
         GPIO.output(self.PinDC, 1)
 
-        lines = []
+        # 13 x 3783 = 49179 (9pxls more than 128x128x3)
+        for y in range(13):
+            self.spi.writebytes(spiData)
 
-        for i in range(128):
-            lines.append(converted[(i*384):(i*384+384)])
+    def draw(self, image):
+        # image must be 128x128x3 bytes
+        self.setWindow(0, 0, self.screenWidth, self.screenHeight)
 
-        for y in range(len(lines)):
-            self.spi.writebytes(lines[y])
+        converted = list(itertools.chain.from_iterable(image.getdata()))
+
+        self.sendCommand(Commands.RAMWR)
+        GPIO.output(self.PinDC, 1)
+
+        spiLines = []
+
+        # Max spi buffer size = 4096 bytes
+        # 12 x 4096 = 49152 (128x128x3)
+        for i in range(12):
+            spiLines.append(converted[(i*4096):(i*4096 + 4096)])
+
+        for y in range(12):
+            self.spi.writebytes(spiLines[y])
+            
+    def draw_at(self, image, x = 0, y = 0):
+        # Makes sure we do not go beyond the screen size
+        width  = min(image.width,  self.screenWidth  - x)
+        height = min(image.height, self.screenHeight - y)
+
+        self.setWindow(x, y, x + width, y + height)
+
+        converted = list(itertools.chain.from_iterable(image.getdata()))
+
+        self.sendCommand(Commands.RAMWR)
+        GPIO.output(self.PinDC, 1)
+
+        extracted = []
+        for i in range(height):
+            extracted += converted[(i*image.width*3):(i*image.width*3 + width*3)]
+
+        n,b,spiLines = len(extracted),0,[]
+        n_lines = (len(extracted) + 4096 - 1) // 4096 # ceil
+        for k in range(n_lines):
+            q, r = divmod(n-k,n_lines)
+            a, b = b, b + q + (r!=0)
+            spiLines.append(extracted[a:b])
+
+        for y in range(n_lines):
+            self.spi.writebytes(spiLines[y])
